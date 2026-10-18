@@ -3,10 +3,9 @@ version: 2.8.0
 description: >
   Declarative manifest for the static/dynamic split. SKILL.md uses this to
   decide which fragments to load for a given figure request. The main axis is
-  the plotting backend (Python or R). The first plotting use should establish
-  a saved user preference; later tasks reuse that preference unless the user
-  explicitly changes it. The large body of design, API, pattern, and QA
-  material stays in on-demand references.
+  the plotting backend (Python or R). General plotting reuses a saved backend
+  preference; named civil-engineering projects use Python by default. The large
+  body of design, API, pattern, and QA material stays in on-demand references.
 
 always_load:
   # Skill-local core (figure does not use the prose-oriented nature-shared layer)
@@ -32,6 +31,21 @@ routes:
     reference: references/openrouter-image-generation.md
     script: scripts/generate_openrouter_schematic.py
 
+  civil_engineering_profile:
+    detect: |
+      Apply this additive presentation overlay to manuscript figures in
+      OpenSees-PEF, SCI5-CFSTsteelReBuild, OpenSees-Slab, or when the user
+      explicitly asks for these civil-engineering defaults. Keep the generic
+      Nature figure contract, integrity safeguards, and journal requirements.
+      Python is the default in this scope unless the current request explicitly
+      chooses another backend; do not block on the ordinary Python/R question.
+      For Python/PNG tasks, use the explicit source-preflight and Matplotlib
+      renderer-QA branch in references/qa-contract.md; mark PDF/vector/TIFF-only
+      checks N/A when those formats are not requested or required.
+    reference: references/civil-engineering-profile.md
+    helper: scripts/civil_engineering_style.py
+    source_preflight: scripts/validate_figure.py --profile civil-engineering
+    png_renderer_audit: audit_png_output
   vector_schematic_workflow:
     detect: |
       Use this route when the user wants a hand-built, editable SVG schematic:
@@ -47,15 +61,17 @@ preference:
   config_env: NATURE_FIGURE_CONFIG
   default_config: ~/.config/nature-skills/nature-figure.json
   behavior: |
-    For plotting tasks, first honor an explicit Python/R choice, then a clearly
-    language-specific input workflow, then a choice established in this task,
-    then the saved preference returned by the backend script. If none exists,
-    ask the user once and save the answer. Pause only dependent plotting work.
-
+    For general plotting, honor the task choice, then a clearly language-specific
+    workflow, then a saved backend preference; ask once only if none resolves it.
+    In the civil-engineering profile, an explicit current-task backend choice
+    wins; otherwise use Python without asking or consulting the saved default.
 axes:
   backend:
     detect: |
-      BLOCKING GATE WITH PERSISTED PREFERENCE. Determine the plotting backend
+      For civil_engineering_profile scope, honor an explicit current-task backend
+      choice; otherwise use Python without asking or consulting a saved preference.
+      For general plotting, use the normal saved-preference gate below. Determine
+      the plotting backend
       from an explicit user choice, a clearly language-specific input
       file/workflow, a choice established in this task, or the saved preference
       returned by scripts/nature_figure_backend.py get. If none resolves it, ask
@@ -74,6 +90,8 @@ axes:
 
 references:
   on_demand:
+    - condition: figure is for OpenSees-PEF, SCI5-CFSTsteelReBuild, OpenSees-Slab, or the user requests the civil-engineering presentation defaults
+      path: references/civil-engineering-profile.md
     - condition: convert a user request into core conclusion, evidence hierarchy, panel map, and review-risk checks
       path: references/figure-contract.md
     - condition: plan, restructure, or audit a multi-panel manuscript figure; decide panel roles or main-versus-Extended-Data placement; or align figure order with a Results evidence chain

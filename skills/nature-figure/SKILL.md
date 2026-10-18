@@ -46,6 +46,10 @@ Read [manifest.yaml](manifest.yaml). It declares the `backend` axis, the allowed
 
 Also read every file listed under `always_load` (`static/core/contract.md` and `static/core/stance.md`). These hold the figure contract, the backend gate, the missing-runtime rule, the privacy rule, and the default operating stance that apply to every figure job.
 
+### Civil-engineering project profile
+
+For paper figures in OpenSees-PEF, SCI5-CFSTsteelReBuild, or OpenSees-Slab, or when the user explicitly requests the civil-engineering defaults, load [references/civil-engineering-profile.md](references/civil-engineering-profile.md) and use its presentation overlay while retaining the general figure contract and review safeguards. Within this scope, use Python by default without asking Python or R; an explicit backend request in the current task takes precedence. This profile does not change defaults for other projects.
+
 ### 2. Resolve the plotting backend
 
 Backend selection applies only to rendering or editing plotting code. Reuse a choice already established in the same task and its follow-ups; do not ask again merely because a new message omits the language. Read-only figure review and backend-independent data inspection may proceed without this choice. If the backend remains unresolved, retain the one-time Python/R question and pause only dependent plotting steps. Explicit approval requirements and backend exclusivity remain in force.
@@ -75,7 +79,7 @@ Apply the loaded material in this order:
 3. Default stance (`core/stance.md`) — archetype-first composition, hero panel, restrained palette, statistics/integrity as part of the figure.
 4. Backend fragment — the exclusive Python or R quick-start and execution rule.
 5. Template adaptation — when reusing built-in original examples, licensed external material, or user-provided plotting code, load `references/asset-adaptation.md` before mapping data or changing the script.
-6. Rendered QA and delivery preflight — load `references/qa-contract.md`, run the render-time panel-alignment gate for every multi-panel figure, `scripts/validate_figure.py` on the plotting source, `scripts/audit_pdf_text.py` on the exported PDF, and `scripts/audit_figure_collisions.py` on the same final PDF. Then inspect every panel and the complete figure at final physical size. Automated checks do not replace the panel-by-panel uncertainty, salience, spacing, and ambiguity audit.
+6. Rendered QA and delivery preflight. For the civil-engineering Python/PNG profile, load `references/qa-contract.md`, run `scripts/validate_figure.py source.py --profile civil-engineering`, save the final PNG, then call `audit_png_output()` from `scripts/civil_engineering_style.py` on the rendered figure and PNG. Preserve its report; for multi-panel figures also run the render-time alignment gate. PDF text-stream, PDF collision, vector-editability, and TIFF checks are `N/A` when those formats are not required; do not create intermediate vector files just to satisfy those checks or report them as passes. For all other routes, retain the general Nature workflow: run the standard source preflight, panel-alignment gate, PDF text audit, and rendered PDF collision audit on the final PDF. If the target journal requires vector output, use its verified export contract and the corresponding full audits. In either route, inspect the final figure at physical size; automated checks do not replace the panel-by-panel uncertainty, salience, spacing, and ambiguity audit.
 
 For every figure containing two or more comparable panels, measure the **final
 rendered plot-area rectangles** before export and preserve the alignment JSON.

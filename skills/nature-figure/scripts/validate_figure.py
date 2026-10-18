@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 
-LEVEL_ORDER = {"PASS": 0, "WARN": 1, "FAIL": 2}
+LEVEL_ORDER = {"PASS": 0, "N/A": 0, "WARN": 1, "FAIL": 2}
 PYTHON_SUFFIXES = {".py"}
 R_SUFFIXES = {".r", ".rmd", ".qmd"}
 
@@ -678,13 +678,75 @@ CHECKS: tuple[Callable[[str, str], Finding], ...] = (
 )
 
 
-def validate_source(source: str, backend: str) -> list[Finding]:
-    return [check(source, backend) for check in CHECKS]
+def check_civil_font_family(source: str, _backend: str) -> Finding:
+    configured = regex_hits(
+        [r"Times\s+New\s+Roman", r"apply_civil_engineering_style\s*\("],
+        source,
+    )
+    if configured:
+        return finding(
+            "FONT-FAMILY", "PASS",
+            "Times New Roman is configured by the civil-engineering profile",
+            configured,
+        )
+    return finding(
+        "FONT-FAMILY", "FAIL",
+        "The civil-engineering profile requires Times New Roman or its style helper",
+    )
+
+
+def check_civil_png_export(source: str, _backend: str) -> Finding:
+    has_png = bool(re.search(r"\.png\b|save_png\s*\(|agg_png\s*\(", source, re.IGNORECASE))
+    if has_png:
+        return finding(
+            "EXPORT-RASTER", "PASS",
+            "PNG is configured as the civil-engineering profile output; TIFF is not required",
+        )
+    return finding("EXPORT-RASTER", "FAIL", "No PNG output is configured for the civil-engineering profile")
+
+
+def validate_source(source: str, backend: str, profile: str = "general") -> list[Finding]:
+    findings = [check(source, backend) for check in CHECKS]
+    if profile == "general":
+        return findings
+    if profile != "civil-engineering":
+        raise ValueError(f"unknown profile: {profile}")
+    replacements = {
+        "FONT-FAMILY": check_civil_font_family(source, backend),
+        "EDITABLE-TEXT": finding(
+            "EDITABLE-TEXT", "N/A", "PNG-only profile; vector text editability is not requested",
+        ),
+        "EXPORT-VECTOR": finding(
+            "EXPORT-VECTOR", "N/A", "PNG-only profile; PDF/SVG export is not required",
+        ),
+        "EXPORT-RASTER": check_civil_png_export(source, backend),
+        "PDF-TEXT-AUDIT": finding(
+            "PDF-TEXT-AUDIT", "N/A", "PNG profile measures Matplotlib text artists at render time; no PDF intermediate",
+        ),
+        "PDF-COLLISION-AUDIT": finding(
+            "PDF-COLLISION-AUDIT", "N/A", "PNG profile checks renderer bounding boxes; PDF/PyMuPDF audit is not applicable",
+        ),
+        "TIFF-EXPORT": finding(
+            "TIFF-EXPORT", "N/A", "TIFF is not a default deliverable in this profile",
+        ),
+    }
+    script_floor = check_mathtext_glyph_floor(source, backend)
+    if script_floor.level == "WARN":
+        replacements["FONT-GLYPH-FLOOR"] = finding(
+            "FONT-GLYPH-FLOOR", "N/A",
+            "Measure the rendered Matplotlib text artists with audit_png_output; PDF glyph tracing is not used",
+            script_floor.evidence,
+        )
+    return [replacements.get(row.check_id, row) for row in findings] + [
+        replacements[check_id] for check_id in (
+            "PDF-TEXT-AUDIT", "PDF-COLLISION-AUDIT", "TIFF-EXPORT",
+        )
+    ]
 
 
 def summarize(findings: Iterable[Finding], strict: bool = False) -> dict[str, object]:
     rows = list(findings)
-    counts = {level: sum(row.level == level for row in rows) for level in ("PASS", "WARN", "FAIL")}
+    counts = {level: sum(row.level == level for row in rows) for level in ("PASS", "N/A", "WARN", "FAIL")}
     ready = counts["FAIL"] == 0 and (not strict or counts["WARN"] == 0)
     return {"ready": ready, "strict": strict, "counts": counts}
 
@@ -705,7 +767,7 @@ def render_text(path: Path, backend: str, findings: list[Finding], strict: bool)
     lines.extend(
         [
             "",
-            f"summary: {counts['PASS']} pass, {counts['WARN']} warn, {counts['FAIL']} fail",
+            f"summary: {counts['PASS']} pass, {counts['N/A']} N/A, {counts['WARN']} warn, {counts['FAIL']} fail",
             f"verdict: {'READY FOR VISUAL QA' if summary['ready'] else 'FIX BEFORE DELIVERY'}",
             "note: static preflight does not validate statistics, source-data truth, or rendered appearance",
         ]
@@ -765,6 +827,26 @@ ax.text(0.5, 0.5, "$R^2$", fontsize=7, rotation=45,
 LABEL_Y = 96.4
 '''
 
+    civil_png_source = '''
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from civil_engineering_style import apply_civil_engineering_style, save_png
+apply_civil_engineering_style()
+mpl.rcParams["font.family"] = "Times New Roman"
+fig, ax = plt.subplots(figsize=(85 / 25.4, 62 / 25.4))
+save_png(fig, "figure.png", dpi=600)
+'''
+    civil = {row.check_id: row for row in validate_source(civil_png_source, "python", "civil-engineering")}
+    assert civil["FONT-FAMILY"].level == "PASS", civil["FONT-FAMILY"]
+    assert civil["EXPORT-RASTER"].level == "PASS", civil["EXPORT-RASTER"]
+    assert civil["EXPORT-VECTOR"].level == "N/A", civil["EXPORT-VECTOR"]
+    assert civil["EDITABLE-TEXT"].level == "N/A", civil["EDITABLE-TEXT"]
+    assert civil["PDF-COLLISION-AUDIT"].level == "N/A", civil["PDF-COLLISION-AUDIT"]
+    assert summarize(civil.values())["ready"]
+    generic_civil = {row.check_id: row for row in validate_source(civil_png_source, "python")}
+    assert generic_civil["FONT-FAMILY"].level == "FAIL", generic_civil["FONT-FAMILY"]
+    assert generic_civil["EXPORT-VECTOR"].level == "FAIL", generic_civil["EXPORT-VECTOR"]
+
     good_py_findings = validate_source(good_python, "python")
     good_py_failures = [row for row in good_py_findings if row.level == "FAIL"]
     assert not good_py_failures, good_py_failures
@@ -795,6 +877,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", nargs="?", type=Path, help="Python or R plotting source")
     parser.add_argument("--backend", choices=("auto", "python", "r"), default="auto")
+    parser.add_argument("--profile", choices=("general", "civil-engineering"), default="general", help="scoped figure-output profile; general keeps the upstream Nature checks")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     parser.add_argument("--strict", action="store_true", help="treat warnings as not ready")
     parser.add_argument("--self-test", action="store_true", help="run dependency-free validator tests")
@@ -819,12 +902,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    findings = validate_source(source, backend)
+    findings = validate_source(source, backend, args.profile)
     summary = summarize(findings, args.strict)
     if args.json:
         payload = {
             "source": str(args.source),
             "backend": backend,
+            "profile": args.profile,
             "summary": summary,
             "findings": [asdict(row) for row in findings],
         }

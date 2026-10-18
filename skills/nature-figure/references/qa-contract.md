@@ -109,6 +109,22 @@ Global adjustments are generally safer than local selective edits. If an adjustm
 changes the visibility of relevant background or bands, flag it instead of silently
 normalizing it away.
 
+## Civil-engineering PNG-only profile
+
+This branch applies only when `nature-figure` routes a task to `references/civil-engineering-profile.md`. It does not change the generic Nature route below.
+
+Run the source preflight with the explicit profile flag:
+
+```bash
+python skills/nature-figure/scripts/validate_figure.py path/to/figure.py --profile civil-engineering
+```
+
+The profile accepts Times New Roman and treats editable-vector text, PDF/SVG export, and TIFF export as `N/A` when no target-journal contract requests those formats. PNG must still be configured, and the remaining source checks for syntax, font sizing, data handling, alignment-gate wiring, and backend consistency still apply.
+
+After saving the final PNG, call `audit_png_output(fig, png_path, axes, ...)` from `scripts/civil_engineering_style.py` before closing the Matplotlib figure. The returned report checks the actual PNG format, pixel dimensions and DPI against the declared canvas, resolved Times New Roman font, rendered text bounds, a configurable minimum text-artist size (8 pt by default), text-box overlaps, panel-ID placement, and shared-legend centering/overlap. Save the report beside the figure when a QA record is needed. This renderer audit does not detect curve strokes crossing text; visually inspect the final PNG at physical size and adjust obscured labels. PDF glyph-stream, PDF text-stroke collision, and vector-editability checks are `N/A` on this PNG-only route; do not create a PDF/SVG/TIFF intermediate solely for those audits and do not call an unavailable check a pass. If a verified target-journal requirement or explicit user request calls for a vector/raster sidecar, return to the general export contract for that requested format and run its applicable audits.
+
+The ordinary `validate_figure.py` mode and all PDF/vector requirements remain unchanged for tasks outside this profile.
+
 ## Automated source preflight
 
 Run the dependency-free validator on the final plotting source before rendering the delivery bundle:
