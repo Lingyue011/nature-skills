@@ -48,7 +48,7 @@ Also read every file listed under `always_load` (`static/core/contract.md` and `
 
 ### Civil-engineering project profile
 
-For paper figures in OpenSees-PEF, SCI5-CFSTsteelReBuild, or OpenSees-Slab, or when the user explicitly requests the civil-engineering defaults, load [references/civil-engineering-profile.md](references/civil-engineering-profile.md) and use its presentation overlay while retaining the general figure contract and review safeguards. Within this scope, use Python by default without asking Python or R; an explicit backend request in the current task takes precedence. This profile does not change defaults for other projects.
+For paper figures in OpenSees-PEF, SCI5-CFSTsteelReBuild, SCI5-1_Wsection, or OpenSees-Slab, or when the user explicitly requests the civil-engineering defaults, load [references/civil-engineering-profile.md](references/civil-engineering-profile.md) and use its presentation overlay while retaining the general figure contract and review safeguards. Within this scope, use Python by default without asking Python or R; an explicit backend request in the current task takes precedence. This profile does not change defaults for other projects. The saved user style includes ordinary gray dashed grids, independent x/y comparison groups, compact full-curve axis limits, readable major ticks that need not enclose the extrema, renderer-measured fixed-mm spacing and prominent panel names; use the profile when making those decisions.
 
 ### 2. Resolve the plotting backend
 

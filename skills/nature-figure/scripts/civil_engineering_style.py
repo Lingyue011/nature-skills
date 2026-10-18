@@ -19,6 +19,8 @@ MM_PER_INCH = 25.4
 TEST_BLACK = "#000000"
 FE_DARK_RED = "#8B1E2D"
 ZERO_GRAY = "#A6A6A6"
+GRID_GRAY = "#808080"
+PANEL_NAME_FONT_PT = 10.5
 
 
 def mm_to_inches(value: float) -> float:
@@ -53,7 +55,12 @@ def apply_civil_engineering_style(
         "xtick.labelsize": tick_label_size,
         "ytick.labelsize": tick_label_size,
         "legend.fontsize": legend_size,
-        "axes.grid": False,
+        "axes.grid": True,
+        "axes.axisbelow": True,
+        "grid.color": GRID_GRAY,
+        "grid.linestyle": "--",
+        "grid.linewidth": 0.4,
+        "grid.alpha": 1.0,
         "axes.spines.top": True,
         "axes.spines.right": True,
         "axes.linewidth": 0.9,
@@ -72,8 +79,8 @@ def apply_civil_engineering_style(
     })
 
 
-def style_closed_axes(ax: Axes) -> None:
-    """Use a four-sided frame and inward ticks, with labels left and bottom."""
+def style_closed_axes(ax: Axes, *, grid: bool = True) -> None:
+    """Use closed axes, inward ticks, and the saved gray major-grid default."""
     for spine in ax.spines.values():
         spine.set_visible(True)
         spine.set_linewidth(0.9)
@@ -81,7 +88,13 @@ def style_closed_axes(ax: Axes) -> None:
     ax.tick_params(which="both", direction="in", top=True, right=True,
                    labeltop=False, labelright=False, labelbottom=True,
                    labelleft=True)
-    ax.grid(False, which="both")
+    ax.set_axisbelow(True)
+    ax.grid(False, which="minor")
+    if grid:
+        ax.grid(True, which="major", axis="both", color=GRID_GRAY,
+                linestyle=(0, (3, 3)), linewidth=0.4, alpha=1.0)
+    else:
+        ax.grid(False, which="both")
 
 
 def style_test_fe_lines(ax: Axes) -> None:
@@ -104,15 +117,18 @@ def add_zero_reference(ax: Axes, *, meaningful: bool = True) -> Line2D | None:
                       linewidth=0.8, zorder=0)
 
 
-def add_panel_id(ax: Axes, text: str, *, y: float = -0.38) -> Text:
-    """Center a panel ID below the x-axis title; adjust y for local layouts."""
+def add_panel_id(
+    ax: Axes, text: str, *, y: float = -0.38,
+    fontsize: float = PANEL_NAME_FONT_PT,
+) -> Text:
+    """Seed a prominent panel name; pack_composite_layout fixes its physical gap."""
     return ax.text(0.5, y, text, transform=ax.transAxes,
-                   ha="center", va="top", clip_on=False)
+                   ha="center", va="top", clip_on=False, fontsize=fontsize)
 
 
 def add_shared_legend(
     fig: Figure, handles: Sequence[Line2D], labels: Sequence[str], *,
-    y: float = 0.99, fontsize: float = 14.0,
+    y: float = 0.99, fontsize: float = 12.0,
 ) -> object:
     """Add a visibly large, full-canvas centered horizontal legend."""
     return fig.legend(handles, labels, loc="upper center",
@@ -121,7 +137,7 @@ def add_shared_legend(
                       columnspacing=1.6, handletextpad=0.6)
 
 
-def save_png(fig: Figure, path: str | Path, *, dpi: int = 300) -> None:
+def save_png(fig: Figure, path: str | Path, *, dpi: int = 600) -> None:
     """Write PNG at the declared canvas size without vector sidecars."""
     fig.savefig(path, dpi=dpi, facecolor="white")
 

@@ -34,7 +34,7 @@ routes:
   civil_engineering_profile:
     detect: |
       Apply this additive presentation overlay to manuscript figures in
-      OpenSees-PEF, SCI5-CFSTsteelReBuild, OpenSees-Slab, or when the user
+      OpenSees-PEF, SCI5-CFSTsteelReBuild, SCI5-1_Wsection, OpenSees-Slab, or when the user
       explicitly asks for these civil-engineering defaults. Keep the generic
       Nature figure contract, integrity safeguards, and journal requirements.
       Python is the default in this scope unless the current request explicitly
@@ -44,6 +44,7 @@ routes:
       checks N/A when those formats are not requested or required.
     reference: references/civil-engineering-profile.md
     helper: scripts/civil_engineering_style.py
+    layout_helper: scripts/civil_engineering_layout.py
     source_preflight: scripts/validate_figure.py --profile civil-engineering
     png_renderer_audit: audit_png_output
   vector_schematic_workflow:
@@ -90,7 +91,7 @@ axes:
 
 references:
   on_demand:
-    - condition: figure is for OpenSees-PEF, SCI5-CFSTsteelReBuild, OpenSees-Slab, or the user requests the civil-engineering presentation defaults
+    - condition: figure is for OpenSees-PEF, SCI5-CFSTsteelReBuild, SCI5-1_Wsection, OpenSees-Slab, or the user requests the civil-engineering presentation defaults
       path: references/civil-engineering-profile.md
     - condition: convert a user request into core conclusion, evidence hierarchy, panel map, and review-risk checks
       path: references/figure-contract.md
