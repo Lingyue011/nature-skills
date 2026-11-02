@@ -29,7 +29,7 @@ def count_skill_index_rows(text: str) -> int:
         section = text.split("## 6.", 1)[1].split("## 7.", 1)[0]
     except IndexError:
         fail("README is missing the section 6 skill index or section 7 boundary")
-    return len(re.findall(r"^\| \[`nature-[^`]+`\]\(", section, flags=re.MULTILINE))
+    return len(re.findall(r"^\| \[`[^`]+`\]\(skills/[^/)]+/README(?:_EN)?\.md\)", section, flags=re.MULTILINE))
 
 
 def validate_top_readmes(triggerable_skill_count: int) -> None:

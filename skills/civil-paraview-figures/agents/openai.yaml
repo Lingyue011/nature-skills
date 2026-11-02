@@ -1,0 +1,4 @@
+interface:
+  display_name: "Civil ParaView Figures"
+  short_description: "Render civil finite-element manuscript figures"
+  default_prompt: "Use $civil-paraview-figures to render an accepted finite-element field as a manuscript figure."

@@ -1,0 +1,11 @@
+name: civil-paraview-figures
+version: 0.1.0
+description: ParaView and Matplotlib presentation of accepted civil finite-element fields.
+references:
+  on_demand:
+    - condition: ParaView rendering and state portability
+      path: references/paraview-recipes.md
+    - condition: HD12 worked example and lessons
+      path: references/hd12-lessons.md
+scripts:
+  - script: scripts/presentation_geometry.py
