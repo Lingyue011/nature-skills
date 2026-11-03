@@ -1,0 +1,12 @@
+{
+  "axis_font": {"type":"number","min":8,"max":14},
+  "tick_font": {"type":"number","min":7,"max":12},
+  "legend_font": {"type":"number","min":8,"max":13},
+  "left": {"type":"number","min":0.16,"max":0.27},
+  "right": {"type":"number","min":0.95,"max":0.99},
+  "bottom": {"type":"number","min":0.16,"max":0.26},
+  "top": {"type":"number","min":0.91,"max":0.98},
+  "xlabel_pad": {"type":"number","min":2,"max":7},
+  "ylabel_pad": {"type":"number","min":2,"max":7},
+  "legend_loc": {"type":"enum","values":["upper right","lower left","upper left"]}
+}

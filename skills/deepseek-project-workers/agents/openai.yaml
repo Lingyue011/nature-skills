@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepSeek Project Workers"
+  short_description: "Delegate drawing and organization with bounded role recovery"
+  default_prompt: "Use $deepseek-project-workers to delegate a bounded drawing or project organization task with Root review."

@@ -1,0 +1,12 @@
+name: deepseek-project-workers
+version: 1.0.0
+description: Bounded DS Flash MAX drawing and project organization workers for Windows.
+always_load: []
+references:
+  on_demand:
+    - condition: install on another computer, configure runtimes, prepare a job or run tests
+      path: references/setup-and-jobs.md
+scripts:
+  installer: scripts/Install-Workers.ps1
+  drawing: scripts/runtime/plot/Invoke-DeepSeekPlotWorker.ps1
+  organization: scripts/runtime/organization/Invoke-DeepSeekOrganizationWorker.ps1
