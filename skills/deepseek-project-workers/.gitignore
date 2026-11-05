@@ -1,4 +1,8 @@
 __pycache__/
 *.pyc
 **/runs/
+**/author_runs/
+**/upgrade-backups/
+**/author-smoke-*/
+**/guidance-*-probe-*/
 worker-config.json

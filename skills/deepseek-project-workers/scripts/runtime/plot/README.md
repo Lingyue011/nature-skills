@@ -1,3 +1,7 @@
+# DS-authored program extension
+
+New presentation logic uses Invoke-DeepSeekPlotAuthor.ps1; see [full author workflow](AUTHOR_WORKFLOW.md). The original layout-only entry remains available below.
+
 # Installed drawing worker
 
 Launch in PowerShell 7 with `-JobFile <absolute job JSON>`. The installer writes local `worker-config.json`;

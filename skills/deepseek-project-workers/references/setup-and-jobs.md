@@ -81,3 +81,13 @@ python -B -X utf8 -m unittest discover -s skills/deepseek-project-workers/script
 For an installation smoke check use fresh `-WorkerHome` and `-SkillRoot` paths containing spaces. Confirm
 both launchers, all local runtime config values and the complete skill are present. A repeated install must
 refuse overwrite without changing the first installation. Do not use real research data as test fixtures.
+
+## DS-authored presentation programs
+
+New logic uses Invoke-DeepSeekPlotAuthor.ps1 (author-v1). See ../scripts/../scripts/runtime/plot/AUTHOR_WORKFLOW.md for start/resume, exact source release, immutable inputs/executables, bounded iteration and state persistence. Author mode enforces role_retries <=2 and max_replacements <=4. Legacy adapter-mode limits above describe only that older entry. This release was additionally exercised with OpenCode v2.2.5; see the package README for coverage and limits. The installer copies the complete runtime/plot folder, including the author extension, on fresh installation.
+
+## Task-specific drawing skills
+
+Use ../scripts/runtime/plot/skill_routes.py to select nature-figure core/backend/QA and civil, multipanel, ParaView or editable-schematic references by task. See ../scripts/runtime/plot/AUTHOR_WORKFLOW.md for seven routes and exact fields. Full text uses UTF-8 stdin; --file is reserved for one image. Author mode never retries timeouts, forced termination or unconfirmed stdin/exit. This supersedes generic replacement assumptions for the author entry only.
+
+Author tests (offline): `python -B -X utf8 -m unittest discover -s skills/deepseek-project-workers/scripts/runtime/plot -p "test*worker.py" -v`.

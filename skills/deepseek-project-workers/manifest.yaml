@@ -1,12 +1,16 @@
 name: deepseek-project-workers
-version: 1.0.0
-description: Bounded DS Flash MAX drawing and project organization workers for Windows.
+version: 1.1.0
+description: DS-authored drawing with task-specific skill loading and bounded organization workers for Windows.
 always_load: []
 references:
   on_demand:
-    - condition: install on another computer, configure runtimes, prepare a job or run tests
+    - condition: install, upgrade, prepare a job or run offline tests
       path: references/setup-and-jobs.md
+    - condition: DS authors drawing code, select figure skills, approve source or resume rendering
+      path: scripts/runtime/plot/AUTHOR_WORKFLOW.md
 scripts:
   installer: scripts/Install-Workers.ps1
-  drawing: scripts/runtime/plot/Invoke-DeepSeekPlotWorker.ps1
+  drawing: scripts/runtime/plot/Invoke-DeepSeekPlotAuthor.ps1
+  drawing_legacy: scripts/runtime/plot/Invoke-DeepSeekPlotWorker.ps1
+  skill_routes: scripts/runtime/plot/skill_routes.py
   organization: scripts/runtime/organization/Invoke-DeepSeekOrganizationWorker.ps1
