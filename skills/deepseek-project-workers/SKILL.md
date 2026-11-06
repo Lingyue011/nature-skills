@@ -40,7 +40,15 @@ Defaults: `role_retries=2` (three attempts including initial), `max_replacements
 
 Model/identity mismatches, unexpected tools, changed inputs/config, authentication/permission/quota problems, malformed complete handoffs, scientific/QA failures and uncertain process cleanup are not transient recovery cases. Root diagnoses them. A failed review may request a bounded layout revision; that is different from an interrupted-role replacement. Never apply role retry to a move, compilation or OpenSees/PDE solve.
 
-Author-mode exception: timeout or any forced termination stops for Root review; it is never auto-replaced, because direct-process exit does not prove every descendant exited. Unconfirmed stdin delivery or exit also stops before any upstream HTTP/EOF recovery classification. Legacy adapter and organization entries retain their separately documented behavior.
+Author v1.2 supports automatic replacement after a verified owned model-request timeout. The native helper creates the process suspended, assigns a non-breakaway Windows Job Object, then resumes it. On timeout it terminates that entire private CLI/server tree and requires zero active processes before replacing only the failed role. Full UTF-8 stdin is supplied as an inherited file handle with EOF; delivery does not prove model consumption. Preserve successful roles, failures and the original retry/wall/output caps. Session-export timeouts, output-limit terminations, rendering failures and uncertain cleanup do not trigger fresh inference. Legacy direct-process-only receipts remain ineligible. Legacy adapter and organization behavior is unchanged.
+
+## Silent execution monitoring
+
+Author v1.3 uses silent local progress snapshots (5s) and heartbeat records (600s), with no inference calls or periodic user messages. New author/reviewer requests use a 2400s (40-minute) upper bound and an explicit finite whole-job budget (supported maximum14400s). Read read_author_progress.py --run RUN for a compact status. Check timestamp freshness and native receipts: local liveness/step_start is not remote-model progress; missing output means progress unknown. Monitoring does not change watchdogs, retry caps or acceptance gates. Historical jobs retain their frozen settings; legacy adapter and organization modes keep their own budgets.
+
+## Collaboration practice
+
+Read [collaboration practice](references/collaboration-practice.md) when preparing drawing data/contracts, diagnosing latency or assessing capability. For new author jobs omitted request/wall limits default to2400/10800s; explicit diagnostic caps remain unchanged. Use optional Root-owned `data_brief` (schema, units, reference state, counts/ranges/examples) for frozen input names. Previews never replace runtime observations. A authors source; B reviews actual images; the appended phase contract scopes full guidance to the current role. `stage_summary.json` separates source/release/execution/QA/independent review and Root record. Do not treat missing output as a proven hang, a short echo as coding proof, or a one-case success as universal readiness.
 
 ## Review and handoff
 

@@ -1,6 +1,7 @@
 """Offline state-machine tests. Model is mocked; candidate fixture really renders."""
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -44,6 +45,31 @@ class AuthorTests(unittest.TestCase):
         self.assertFalse((self.run/'01_render').exists())
         self.assertEqual((self.run/'01_candidate.py').read_text(),SOURCE)
 
+    def test_default_budgets_and_scoped_data_brief_reach_both_roles(self):
+        job=copy.deepcopy(self.state['job']);del job['turn_seconds'];del job['wall_seconds']
+        job['data_brief']={'files':[{'name':'data.json','units':'synthetic','rows':1,'examples':[{'immutable':1}]}]}
+        a.write(self.root/'brief.json',job)
+        run,state=a.start(self.root/'brief.json',self.root/'brief_runs',job['renderer_exe'],job['renderer_exe'])
+        self.assertEqual(state['job']['turn_seconds'],2400);self.assertEqual(state['job']['wall_seconds'],10800)
+        for role in ('A: presentation program author','B: independent actual-image reviewer'):
+            prompt=json.loads(a.guided_prompt(state,run,{'role':role}))
+            self.assertEqual(prompt['root_data_brief'],job['data_brief'])
+            self.assertIn('ONLY:',prompt['current_phase_contract'])
+        bad=copy.deepcopy(job);bad['data_brief']['files'][0]['name']='outside.csv'
+        a.write(self.root/'badbrief.json',bad)
+        with self.assertRaisesRegex(ValueError,'unapproved input'):
+            a.start(self.root/'badbrief.json',self.root/'badbrief_runs',job['renderer_exe'],job['renderer_exe'])
+
+    def test_stage_summary_does_not_promote_partial_success(self):
+        self.propose();r=a.read(self.run/'stage_summary.json')
+        self.assertTrue(r['source_returned']);self.assertFalse(r['source_released'])
+        self.assertIsNone(r['machine_checks_passed']);self.assertEqual(r['independent_review'],'not_completed')
+        self.assertEqual(r['root_acceptance'],'not_recorded')
+        self.state.update(round=2,feedback={'verdict':'revise'},feedback_round=1)
+        (self.run/'02_candidate.py').write_text(SOURCE)
+        (self.run/'02_render').mkdir();a.write(self.run/'02_render/vision_verification.json',{'passed':True})
+        self.assertEqual(a.stage_summary(self.state,self.run)['independent_review'],'not_completed')
+
     def test_approval_binds_code_inputs_runtime_controller(self):
         self.propose();good=a.request_contract(self.state,self.run)
         for field in ('run_id','round','source_sha256','input_hashes','renderer_exe','controllers','executables'):
@@ -62,6 +88,37 @@ class AuthorTests(unittest.TestCase):
         self.propose();self.state['started_epoch']-=1201
         with self.assertRaises(TimeoutError):a.check_immutable(self.state)
         self.assertEqual(self.state['round'],1)
+
+    def test_40minute_request_budget_and_4hour_job_ceiling(self):
+        job=copy.deepcopy(self.state['job']);job.update(turn_seconds=2400,wall_seconds=10800)
+        a.write(self.root/'long.json',job)
+        run,state=a.start(self.root/'long.json',self.root/'long_runs',job['renderer_exe'],job['renderer_exe'])
+        self.assertEqual(state['job']['turn_seconds'],2400)
+        job['turn_seconds']=2401;a.write(self.root/'too_long.json',job)
+        with self.assertRaises(ValueError):a.start(self.root/'too_long.json',self.root/'long_runs',job['renderer_exe'],job['renderer_exe'])
+
+    @unittest.skipUnless(os.name=='nt' and os.environ.get('DS_TEST_PWSH'),'Windows runtime test')
+    def test_real_native_call_updates_silent_progress(self):
+        fixture=self.root/'run'
+        fixture.write_text('import sys,json\nsys.stdin.read()\nprint(json.dumps({"type":"text","part":{"text":"ok"}}),flush=True)\n')
+        w=a.Worker(dict(wall_seconds=30),self.root,os.environ['DS_TEST_PWSH'],sys.executable)
+        stem=self.root/'request'
+        w.native(sys.executable,['run','fixture'],self.root,stem,5)
+        r=a.read(str(stem)+'.progress.json')
+        self.assertEqual(r['status'],'native_completed_pending_verification')
+        self.assertEqual(r['content_character_counts']['text'],2)
+        self.assertFalse(r['native_call_pending'])
+
+    @unittest.skipUnless(os.name=='nt' and os.environ.get('DS_TEST_PWSH'),'Windows runtime test')
+    def test_real_native_timeout_retains_watchdog_and_progress(self):
+        (self.root/'run').write_text('import sys,time\nsys.stdin.read()\ntime.sleep(90)\n')
+        w=a.Worker(dict(wall_seconds=30),self.root,os.environ['DS_TEST_PWSH'],sys.executable)
+        stem=self.root/'request'
+        with self.assertRaisesRegex(RuntimeError,'Native failure'):
+            w.native(sys.executable,['run','fixture'],self.root,stem,.8)
+        r=a.read(str(stem)+'.progress.json');n=a.read(str(stem)+'.native.json')
+        self.assertEqual(r['status'],'request_timeout_stopped')
+        self.assertEqual(n['activeProcessesAfterCleanup'],0)
 
     def test_no_replay_after_inflight_or_terminal(self):
         self.propose();approval=a.request_contract(self.state,self.run)
@@ -192,6 +249,49 @@ class AuthorTests(unittest.TestCase):
                         dict(cleanupConfirmed=True,stdinRequired=False,reason='timeout',exitCode=124)):
             a.write(folder/'request.native.json',receipt)
             self.assertFalse(classify(folder,RuntimeError('native'))[0])
+
+    def test_verified_job_timeout_replaced_but_not_output_or_auth(self):
+        from author_role_retry import classify,run_role
+        import time
+        folder=self.root/'attempt';folder.mkdir()
+        a.write(folder/'attempt_inputs.json',{})
+        receipt=dict(cleanupScope='windows-job-object',suspendedAssignment=True,
+            activeProcessesAfterCleanup=0,cleanupConfirmed=True,stdinRequired=True,
+            stdinComplete=True,terminationRequested=True,reason='timeout',exitCode=124)
+        a.write(folder/'request.native.json',receipt)
+        self.assertEqual(classify(folder,RuntimeError('native')),(True,'owned_native_request_timeout'))
+        for key,value in [('activeProcessesAfterCleanup',1),('suspendedAssignment',False),('stdinComplete',False)]:
+            bad=dict(receipt);bad[key]=value;a.write(folder/'request.native.json',bad)
+            self.assertFalse(classify(folder,RuntimeError('native'))[0])
+        a.write(folder/'request.native.json',receipt)
+        (folder/'request.stderr').write_text('HTTP 401 unauthorised')
+        self.assertFalse(classify(folder,RuntimeError('native'))[0])
+        # Normal CLI exit can leave its private server for verified final
+        # cleanup. This is not an unclassified forced interruption.
+        a.write(folder/'request.native.json',dict(receipt,reason=None,exitCode=1))
+        (folder/'request.stderr').write_text('HTTP 503 connection reset')
+        self.assertEqual(classify(folder,RuntimeError('native')),(True,'upstream_transport'))
+        (folder/'request.stderr').write_text('')
+        bad=dict(receipt,reason='output_limit');a.write(folder/'request.native.json',bad)
+        (folder/'request.stderr').write_text('HTTP 503 connection reset')
+        self.assertFalse(classify(folder,RuntimeError('native'))[0])
+        a.write(folder/'request.native.json',dict(cleanupConfirmed=True,stdinRequired=False))
+        a.write(folder/'session.native.json',receipt)
+        self.assertEqual(classify(folder,RuntimeError('native')),(False,'session_export_timeout_no_new_inference'))
+        (folder/'session.native.json').unlink()
+        class Fake:
+            job=dict(role_retries=2,max_replacements=2,max_rounds=3,wall_seconds=30)
+            calls=0;replacements=0;start=time.monotonic();run=folder
+            def _turn_once(w,role,n,prompt,files,attempt):
+                dest=w.run/(f'{n:02}_{role}'+(f'_retry{attempt:02}' if attempt>1 else ''));dest.mkdir()
+                a.write(dest/'attempt_inputs.json',{});a.write(dest/'request.native.json',receipt)
+                if attempt<3:raise RuntimeError('native')
+                return {'source':'preserved'}
+        w=Fake()
+        with patch('author_role_retry.time.sleep'):
+            self.assertEqual(run_role(w,'B',1,'same immutable prompt',[]),{'source':'preserved'})
+        self.assertEqual(w.calls,1);self.assertEqual(w.replacements,2)
+        self.assertEqual(len(list(folder.glob('*_B*'))),3)
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

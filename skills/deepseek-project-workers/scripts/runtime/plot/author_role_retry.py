@@ -40,10 +40,19 @@ def classify(folder,error):
         native=folder/(stem+'.native.json')
         if native.exists():
             receipt=load(native)
-            # Kill(true)+WaitForExit proves direct exit, not complete descendant
-            # cleanup. No automatic replacement after forced termination.
+            if receipt.get('reason')=='output_limit':return False,'native_output_limit'
+            if stem=='session' and receipt.get('reason')=='timeout':
+                return False,'session_export_timeout_no_new_inference'
+            if receipt.get('terminationRequested') and receipt.get('reason') not in (None,'timeout'):
+                return False,'non_timeout_termination'
+            # A suspended launch in a non-breakaway Job Object plus zero active
+            # processes proves the owned private server was also terminated.
             if receipt.get('reason')=='timeout' or receipt.get('terminationRequested'):
-                return False,'forced_termination_descendants_unverified'
+                if not (receipt.get('cleanupScope')=='windows-job-object' and
+                        receipt.get('suspendedAssignment') is True and
+                        receipt.get('activeProcessesAfterCleanup')==0 and
+                        receipt.get('cleanupConfirmed') is True):
+                    return False,'forced_termination_descendants_unverified'
             if receipt.get('cleanupConfirmed') is not True:
                 return False,'owned_cleanup_unverified'
             if receipt.get('stdinRequired') and receipt.get('stdinComplete') is not True:
@@ -100,7 +109,7 @@ def classify(folder,error):
         except (OSError,ValueError):return False,'unverifiable_session_identity'
     if re.search(r'\b(408|429|500|502|503|504)\b|econnreset|etimedout|econnrefused|unexpected eof|stream.{0,35}(closed|reset|truncat)|connection.{0,25}(reset|closed)|socket hang up',signals):
         return True,'upstream_transport'
-    for stem in ['request','session']:
+    for stem in ['request']:
         native=folder/(stem+'.native.json')
         if native.exists():
             receipt=load(native)

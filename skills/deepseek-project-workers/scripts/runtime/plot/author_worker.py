@@ -17,8 +17,9 @@ import time
 from plot_worker import Worker as BaseWorker, checked_file, read, write, sha, MODEL, HERE
 from skill_routes import ROUTES
 from author_role_retry import run_role
+from author_progress import ProgressMonitor
 
-VERSION = 'author-v1'
+VERSION = 'author-v1.4'
 
 
 class Worker(BaseWorker):
@@ -35,6 +36,7 @@ class Worker(BaseWorker):
         remaining=self.job['wall_seconds']-(time.monotonic()-self.start)
         if remaining<5:raise TimeoutError('Whole-job wall limit')
         args=list(map(str,args));inputfile=None
+        operation='model_request' if args and args[0]=='run' else ('session_export' if args[:2]==['session','export'] else 'render')
         if args and args[0]=='run':
             if args.count('--file')>1:raise ValueError('Only one image attachment supported')
             prompt=args.pop()
@@ -45,9 +47,17 @@ class Worker(BaseWorker):
             receipt=str(stem)+'.native.json',timeout=min(seconds,remaining),
             outputBytes=8*1024*1024,inputFile=str(inputfile) if inputfile else None)
         write(str(stem)+'.spec.json',spec)
-        proc=subprocess.run([self.pwsh,'-NoProfile','-File',str(HERE/'author_native.ps1'),
-            '-SpecFile',str(stem)+'.spec.json'],capture_output=True,timeout=spec['timeout']+35)
-        receipt=read(spec['receipt'])
+        monitor=ProgressMonitor(stem,operation,spec['timeout'])
+        monitor.__enter__()
+        try:
+            proc=subprocess.run([self.pwsh,'-NoProfile','-File',str(HERE/'author_job_process.ps1'),
+                '-SpecFile',str(stem)+'.spec.json'],capture_output=True,timeout=spec['timeout']+35)
+            receipt=read(spec['receipt'])
+        except Exception:
+            monitor.finish('native_call_exception_cleanup_requires_review')
+            raise
+        monitor.finish('request_timeout_stopped' if receipt.get('reason')=='timeout' else
+            ('native_failed' if proc.returncode or receipt['exitCode'] or receipt.get('reason') else 'native_completed_pending_verification'))
         if proc.returncode or receipt['exitCode'] or receipt.get('reason'):
             raise RuntimeError('Native failure: '+str(receipt))
         if sum(p.stat().st_size for p in self.run.rglob('*') if p.is_file())>64*1024*1024:
@@ -80,7 +90,7 @@ def lock(run):
 
 
 def controller_hashes():
-    files = [Path(__file__), HERE/'skill_routes.py', HERE/'author_native.ps1',HERE/'author_role_retry.py',
+    files = [Path(__file__), HERE/'skill_routes.py', HERE/'author_job_process.ps1',HERE/'author_role_retry.py',HERE/'author_progress.py',
              HERE/'plot_worker.py', HERE/'role_retry.py', HERE/'native.ps1']
     return {str(p.resolve()): sha(p) for p in files}
 
@@ -105,6 +115,37 @@ def check_immutable(state):
         raise TimeoutError('Whole-job wall limit including Root review pauses')
 
 
+def stage_summary(state,run):
+    """Separate observed stages; none of these is physical-model validation."""
+    def artifact(path):
+        try:
+            value=read(path)
+            return value if isinstance(value,dict) else {}
+        except (OSError,ValueError):return {}
+    n=state['round'];code=run/('%02d_candidate.py'%n);out=run/('%02d_render'%n)
+    qa=artifact(out/'qa.json');vision=artifact(out/'vision_verification.json')
+    feedback=state.get('feedback',{});feedback=feedback if isinstance(feedback,dict) else {}
+    approval=artifact(run/('%02d_root_approval.json'%n))
+    native=artifact(run/('%02d_render_process.native.json'%n))
+    result=dict(round=n,worker_state=state['status'],source_returned=code.is_file(),
+        source_released=bool(code.is_file() and approval.get('source_sha256')==sha(code)),
+        render_exit_code=native.get('exitCode'),machine_checks_passed=qa.get('passed'),
+        independent_image_delivery_passed=vision.get('passed'),
+        independent_review=feedback.get('verdict') if vision.get('passed') is True and state.get('feedback_round')==n else 'not_completed',
+        root_acceptance='not_recorded',role_usage={})
+    for role in ('A','B'):
+        receipts=sorted(run.glob('%02d_%s*/receipt.json'%(n,role)),key=lambda p:p.stat().st_mtime)
+        if receipts:
+            r=artifact(receipts[-1]);result['role_usage'][role]=dict(
+                model=r.get('model'),tokens=r.get('tokens'),request_seconds=r.get('native',{}).get('seconds'))
+    final=artifact(run/'root_final_acceptance.json')
+    png=out/'figure.png'
+    if (final.get('accepted') is True and code.is_file() and png.is_file()
+        and final.get('source_sha256')==sha(code) and final.get('figure_sha256')==sha(png)):
+        result['root_acceptance']='recorded_matching_source_and_image'
+    return result
+
+
 def save(run, state):
     # Keep a durable state at every boundary; never auto-resume an interrupted effect.
     tmp = run/'state.tmp'
@@ -113,6 +154,9 @@ def save(run, state):
     write(run/'result.json', dict(status=state['status'], run=str(run),
         round=state['round'], model=MODEL, review='pending_root_review',
         calls=state['calls'], replacements=state['replacements'], error=state.get('error')))
+    try:summary=stage_summary(state,run)
+    except Exception as error:summary={'evidence_observation_error':type(error).__name__}
+    write(run/'stage_summary.json',summary)
 
 
 def worker(state, run):
@@ -141,6 +185,20 @@ def guided_prompt(state,run,prompt):
     prompt['guidance_scope']='Apply presentation guidance to this project contract. '
     prompt['guidance_scope']+='Project units, axes and scientific definitions take precedence over example-specific defaults. '
     prompt['guidance_scope']+='Do not claim to have loaded helpers or run checks merely because guidance mentions them.'
+    if 'data_brief' in state['job']:
+        prompt['root_data_brief']=state['job']['data_brief']
+    role=prompt.get('role','')
+    if role.startswith('A:'):
+        scope=('AUTHOR ONLY: write the complete presentation source. Runtime checks and image inspection '
+               'occur after Root releases the source; do not execute them or claim their results now. '
+               'Use the supplied schema/brief to write file-reading code; the catalog is not file-content access. '
+               'The program must load the frozen files, not substitute preview rows or hardcode example values.')
+    elif role.startswith('B:'):
+        scope=('REVIEWER ONLY: inspect the attached actual image and supplied source, identify concrete '
+               'visual/data-preservation issues and return the requested verdict/probe. Do not write a '
+               'replacement program or repeat the author workflow. Machine QA alone is not visual acceptance.')
+    else:scope='Apply only the guidance relevant to the current assigned phase.'
+    prompt['current_phase_contract']=scope+' The shared task describes the overall goal; it does not reassign your role.'
     encoded=json.dumps(prompt,ensure_ascii=False)
     limit=245000 if state['job'].get('guidance_delivery','inline')=='stdin' else 28000
     if len(encoded.encode('utf-16-le'))//2>limit:
@@ -252,7 +310,7 @@ def resume(state,run,approval):
     finally:
         state['calls'],state['replacements']=w.calls,w.replacements
     check_immutable(state)
-    state['feedback']=feedback;state['candidate']=str(out/'figure.png')
+    state['feedback']=feedback;state['feedback_round']=state['round'];state['candidate']=str(out/'figure.png')
     if feedback['verdict']=='accept' and qa['passed']:
         state['status']='candidate_ready_pending_root_review';save(run,state)
     elif state['round']>=state['job']['max_rounds']:
@@ -263,7 +321,10 @@ def resume(state,run,approval):
 
 def start(jobfile,runroot,pwsh,cli):
     job=read(checked_file(jobfile))
-    for key,lo,hi in [('max_rounds',1,3),('turn_seconds',30,600),('wall_seconds',120,2400),('render_seconds',10,180)]:
+    # Defaults for new drawing jobs only; explicit diagnostic/older caps stay explicit.
+    job.setdefault('turn_seconds',2400)
+    job.setdefault('wall_seconds',10800)
+    for key,lo,hi in [('max_rounds',1,3),('turn_seconds',30,2400),('wall_seconds',120,14400),('render_seconds',10,180)]:
         bounded(job[key],lo,hi,key)
     bounded(job.get('role_retries',2),0,2,'role_retries')
     bounded(job.get('max_replacements',4),0,4,'max_replacements')
@@ -271,6 +332,14 @@ def start(jobfile,runroot,pwsh,cli):
     if not isinstance(job['input_contract'],str) or len(job['input_contract'])>12000:raise ValueError('Contract size')
     if not 1<=len(job['inputs'])<=12:raise ValueError('Input count')
     inputs=[checked_file(p) for p in job['inputs']]
+    if 'data_brief' in job:
+        brief=job['data_brief']
+        if not isinstance(brief,dict) or len(json.dumps(brief,ensure_ascii=False))>12000:
+            raise ValueError('data_brief must be a bounded Root-owned object')
+        files=brief.get('files',[])
+        if not isinstance(files,list) or any(not isinstance(f,dict) or not isinstance(f.get('name'),str)
+            or f['name'] not in {p.name for p in inputs} for f in files):
+            raise ValueError('data_brief references an unapproved input')
     if len({p.name for p in inputs})!=len(inputs):raise ValueError('Duplicate input basenames')
     if sum(p.stat().st_size for p in inputs)>24*1024*1024:raise ValueError('Input total exceeds 24 MiB')
     exe=checked_file(job['renderer_exe'])

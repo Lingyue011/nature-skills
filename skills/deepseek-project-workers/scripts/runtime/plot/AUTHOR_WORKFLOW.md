@@ -35,8 +35,8 @@ Root 不代写日常布局、相机、色标、图版逻辑。DS 不改模型、
 |`guidance_files`|Root 选定的 skill/参考正文绝对路径，最多 16 文件；stdin 模式合计至多 192 KiB，inline 至多 24000 bytes|
 |`approved_guidance_sha256`|上述指导文件绝对路径对应的 SHA256；同时冻结原件与副本|
 |`max_rounds`|1–3|
-|`turn_seconds`|30–600|
-|`wall_seconds`|120–2400；包含 Root 审查暂停时间，不跨进程重置|
+|`turn_seconds`|30–2400；本机新DS请求采用2400秒（40分钟）|
+|`wall_seconds`|120–14400；独立整任务上限，包含Root审查暂停，不跨进程重置|
 |`render_seconds`|10–180；渲染不自动重试|
 |`role_retries`|0–2，默认 2；仅已识别且无强制终止的上游瞬时失败|
 |`max_replacements`|0–4，默认 4；只重试已识别的上游瞬时错误|
@@ -94,9 +94,45 @@ worker 将这些指导文件的**全文**分别写进 A 与 B 的实际提示词
 程序运行有时限和日志上限，但这些机制不能阻止已执行代码的任意文件副作用。
 worker 不为模型开放原生编辑、shell 或子 agent 工具。
 
-author 专用 helper 保存 stdin 写入/EOF 与直接进程退出状态；这不证明所有后代已清理。
-因此任何超时或强制结束均停止并交 Root 检查，**不自动 replacement**；不沿用旧入口对
-owned timeout 的恢复假设。stdin 送达或退出状态未确认，即使附带 HTTP/网络错误也不重试。
+author v1.2 helper 挂起创建进程，加入不可 breakaway 的 Windows Job Object 后才恢复。
+完整 UTF-8 文件以继承的 stdin 句柄及 EOF 交付；记录表示提示全文可读，不声称模型已使用全文。
+超时终止本次 Job Object 内的 CLI、私有服务器及后代；确认 activeProcessesAfterCleanup=0
+后只补位失败角色，新建会话。保留已有成功角色、失败回执和原 wall/output/round 预算。
+默认每角色最多补位2次、整任务4次；不杀共享服务或其他任务。
+仅模型 request 超时可补位；导出超时、渲染失败、输出超限、身份/输入/权限问题和
+清理状态未确认均不自动重发模型或重跑渲染。旧 direct-process-only 回执仍不能自动补位。
 
 本目录包含扩展源码与测试；安装器复制完整 runtime 到所选 worker-home，可供各项目调用。
 离线测试不会调用模型；真实验收记录单独保存，不能以 mock 测试冒充真实 DS 闭环。
+
+## v1.3 静默心跳
+
+本地observer每5秒更新`request.progress.json`，每600秒将快照写入
+`request.heartbeats.jsonl`；请求结束时追加终态。无额外模型调用，不向用户定时发消息。
+Root读取简报即可查看角色目录/阶段/耗时/事件数/输出字节数/最近可见模型输出年龄。
+只记录计数，不保存推理正文。`step_start`、日志增长、观察器存活不代表模型仍在有效生成。
+无内容进展标记为`waiting_no_visible_model_progress`，不假称真卡死或正常推进。
+observer不杀进程、不补位、不延长预算，写入故障不改变求解/渲染/模型请求结果。
+原生Job Object看门狗和验证后的角色补位仍独立生效。新请求40分钟上限，
+全任务另设有限wall预算；旧运行保持原配置，不修改历史冻结状态。
+Root可调用`read_author_progress.py --run <run>`获取单条简报。
+若`updated_utc`已陈旧或observer_error存在，须结合原生回执/控制器状态判断；
+不能把旧文件中的pending当作进程仍存活。该reader不杀进程、不启动模型。
+
+## v1.4 可复用协作契约
+
+新job省略时采用turn_seconds=2400、wall_seconds=10800；显式短诊断预算保持有效。
+`data_brief`为可选Root审定对象（JSON最多12000字符），其中`files`条目用`name`
+引用已冻结input文件名。可提供列名、单位、参考状态、点数、范围、首尾行和科学标签含义。
+不要把小样本当作全数据；DS程序必须在执行时读原文件。worker不自行计算科学统计或改定义。
+只给文件路径不等于DS已读到数据；完整CSV仅在小而必要、已授权且预算允许时提供。
+
+A/B均收到完整选定指导和data_brief；末尾current_phase_contract明确当前角色。
+A只写程序，执行及实际QA在Root批准后进行；B审真实图与源码，不重走作者步骤。
+自动stage_summary.json区分源码返回、精确批准、运行/机器检查、图像送达、B审图及Root记录。
+Root最终接受需另存root_final_acceptance.json，绑定source_sha256和figure_sha256；
+reader仅在两者匹配时显示Root接受。任何单阶段成功均不等同整个流程或物理模型验证。
+
+排查应先短问答、再代表性完整单图，不反复重启已成功阶段。成功A/B回执中的推理/输出tokens
+和耗时可分析负担，失败请求的零用量不能证明没有推理。没有可见输出是未知，不是断联证据。
+2026-11-06 S1实测A396s、B514s均成功，证明该次旧180s限制不足；不能推广为所有历史故障根因。

@@ -1,9 +1,11 @@
 name: deepseek-project-workers
-version: 1.1.0
+version: 1.4.0
 description: DS-authored drawing with task-specific skill loading and bounded organization workers for Windows.
 always_load: []
 references:
   on_demand:
+    - condition: preparing drawing contracts, diagnosing latency or assessing stage outcomes
+      path: references/collaboration-practice.md
     - condition: install, upgrade, prepare a job or run offline tests
       path: references/setup-and-jobs.md
     - condition: DS authors drawing code, select figure skills, approve source or resume rendering

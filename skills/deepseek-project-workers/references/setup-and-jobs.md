@@ -88,6 +88,16 @@ New logic uses Invoke-DeepSeekPlotAuthor.ps1 (author-v1). See ../scripts/../scri
 
 ## Task-specific drawing skills
 
-Use ../scripts/runtime/plot/skill_routes.py to select nature-figure core/backend/QA and civil, multipanel, ParaView or editable-schematic references by task. See ../scripts/runtime/plot/AUTHOR_WORKFLOW.md for seven routes and exact fields. Full text uses UTF-8 stdin; --file is reserved for one image. Author mode never retries timeouts, forced termination or unconfirmed stdin/exit. This supersedes generic replacement assumptions for the author entry only.
+Use ../scripts/runtime/plot/skill_routes.py to select nature-figure core/backend/QA and civil, multipanel, ParaView or editable-schematic references by task. See ../scripts/runtime/plot/AUTHOR_WORKFLOW.md for seven routes and exact fields. Full text uses UTF-8 stdin; --file is reserved for one image. Author v1.2 automatically replaces an owned model-request timeout only after suspended Job Object launch and verified zero active processes. Export/render/output-limit failures and unconfirmed delivery/cleanup do not trigger new inference. See AUTHOR_WORKFLOW.md; original retry/wall/output caps remain.
 
 Author tests (offline): `python -B -X utf8 -m unittest discover -s skills/deepseek-project-workers/scripts/runtime/plot -p "test*worker.py" -v`.
+
+
+## Author v1.3 silent monitoring
+
+Author v1.3 uses silent local progress snapshots (5s) and heartbeat records (600s), with no inference calls or periodic user messages. New author/reviewer requests use a 2400s (40-minute) upper bound and an explicit finite whole-job budget (supported maximum14400s). Read read_author_progress.py --run RUN for a compact status. Check timestamp freshness and native receipts: local liveness/step_start is not remote-model progress; missing output means progress unknown. Monitoring does not change watchdogs, retry caps or acceptance gates. Historical jobs retain their frozen settings; legacy adapter and organization modes keep their own budgets.
+
+
+## Author v1.4 collaboration contracts
+
+New author jobs support bounded Root-reviewed data_brief, phase-specific A/B contracts, default40min requests and separate stage_summary.json. Full selected skill delivery, exact source release, actual-image review and Root acceptance remain. Read references/collaboration-practice.md (from the skill root) for tested lessons and their limits. Historical runs are preserved.
